@@ -9,19 +9,16 @@ st.set_page_config(page_title="Lucas Business Pro", layout="centered")
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
 try:
-    # Usamos los dos permisos (Sheets y Drive) para evitar el error 403
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
     client = gspread.authorize(creds)
-    
-    # Abrimos el archivo TOMASSO
     spreadsheet = client.open("TOMASSO")
     sheet_ventas = spreadsheet.worksheet("VENTAS")
     sheet_stock = spreadsheet.worksheet("STOCK")
 except Exception as e:
-    st.error(f"Error de conexión: {e}. Revisá que el archivo se llame TOMASSO y las pestañas VENTAS y STOCK.")
+    st.error(f"Error de conexión: {e}")
 
-# --- BASE DE DATOS ACTUALIZADA ---
+# --- BASE DE DATOS ---
 PIZZAS = {
     "Muzzarella": {"precio": 8000, "margen": 2000},
     "Fugazzeta": {"precio": 8500, "margen": 2050},
@@ -31,6 +28,8 @@ PIZZAS = {
     "Napolitana": {"precio": 7500, "margen": 1800},
 }
 
+# --- SABORES DE EMPANADAS RECUPERADOS ---
+EMPANADAS_SABORES = ["Carne", "JyQ", "CyQ", "Pollo", "Humita", "Verdura", "Roquefort", "Cheeseburger", "Bondiola BBQ", "Capresse"]
 PRECIO_CAJA_4 = 6500
 MARGEN_CAJA_4 = 1500
 
@@ -78,10 +77,14 @@ with st.expander("➕ Cargar Productos", expanded=True):
             })
 
     elif categoria == "Empanadas":
-        cant_e = st.number_input("Cajas de 4", min_value=1, step=1, key="emp")
+        st.info("Venta por Pack de 4 unidades")
+        sabores_elegidos = st.multiselect("Seleccioná los sabores (máx 4 por pack o surtido)", EMPANADAS_SABORES)
+        cant_e = st.number_input("¿Cuántos packs de 4 querés?", min_value=1, step=1, key="emp")
         if st.button("Agregar Empanadas"):
+            # Guardamos los sabores en el nombre para que te quede el registro
+            detalle = ", ".join(sabores_elegidos) if sabores_elegidos else "Surtidas"
             st.session_state.carrito.append({
-                "Cat": "Empanadas", "Prod": "Empanadas (Pack x4)", "Cant": cant_e,
+                "Cat": "Empanadas", "Prod": f"Emp. x4 ({detalle})", "Cant": cant_e,
                 "Subtotal": PRECIO_CAJA_4 * cant_e, "Profit": MARGEN_CAJA_4 * cant_e
             })
 
@@ -108,7 +111,7 @@ if st.session_state.carrito:
     st.divider()
     df = pd.DataFrame(st.session_state.carrito)
     
-    # Lógica de Descuento Pack x10 Barritas
+    # Lógica Descuento Pack x10 Barritas
     total_bar = df[df["Cat"] == "Barritas"]["Cant"].sum()
     desc_vta = (total_bar // 10) * 3000 if total_bar >= 10 else 0
 
@@ -121,16 +124,18 @@ if st.session_state.carrito:
         if st.button("✅ CERRAR VENTA", use_container_width=True, type="primary"):
             try:
                 filas = []
-                # Ajuste de ratio para el profit de barritas si hay descuento
                 total_sub_bar = df[df["Cat"]=="Barritas"]["Subtotal"].sum()
-                ratio = (total_sub_bar - desc_vta) / total_sub_bar if total_bar >= 10 else 1
+                ratio = (total_sub_bar - desc_vta) / total_sub_bar if (total_bar >= 10 and total_sub_bar > 0) else 1
                 
                 for item in st.session_state.carrito:
                     sub_r = item["Subtotal"] * ratio if item["Cat"] == "Barritas" else item["Subtotal"]
                     prof_r = item["Profit"] * ratio if item["Cat"] == "Barritas" else item["Profit"]
                     
                     filas.append([datetime.now().strftime("%Y-%m-%d %H:%M"), barrio_venta, item["Prod"], item["Cant"], sub_r, prof_r])
-                    descontar_stock(item["Prod"], item["Cant"])
+                    
+                    # Para descontar stock de empanadas, buscamos el nombre base
+                    nombre_busqueda = "Empanadas (Pack x4)" if item["Cat"] == "Empanadas" else item["Prod"]
+                    descontar_stock(nombre_busqueda, item["Cant"])
                 
                 sheet_ventas.append_rows(filas)
                 st.success("¡Venta guardada!")
