@@ -29,13 +29,18 @@ PIZZAS = {
 }
 
 EMPANADAS_SABORES = ["Carne", "JyQ", "CyQ", "Pollo", "Humita", "Verdura", "Roquefort", "Cheeseburger", "Bondiola BBQ", "Capresse"]
-# Precio por unidad basado en el pack de 4 ($6500 / 4 = $1625)
 PRECIO_UNIT_EMP = 1625 
 MARGEN_UNIT_EMP = 375
 
-# (Resto de productos se mantiene igual...)
 CRUDDA_SABORES = ["Brownie", "Peanut Caramel", "Arandanos y Nuez", "Coco y Chocolate", "Avellana y chocolate", "Banana Toffee"]
-VOLCANES_VOLKANO = {"Chocolate": {"precio": 3500, "margen": 1200}, "Dulce de Leche": {"precio": 3500, "margen": 1200}}
+PRECIO_UNIT_BAR = 2200
+MARGEN_UNIT_BAR = 868
+
+VOLCANES_VOLKANO = {
+    "Chocolate": {"precio": 3500, "margen": 1200},
+    "Dulce de Leche": {"precio": 3500, "margen": 1200}
+}
+
 BARRIOS = ["Talar del Lago 1", "Talar del lago 2","Barrancas de Santa Maria","Nordelta","Santa Barbara","Otro"]
 
 # --- LÓGICA DE STOCK ---
@@ -69,7 +74,6 @@ with st.expander("➕ Cargar Productos", expanded=True):
             })
 
     elif categoria == "Empanadas":
-        st.write("### Selección por Sabor")
         sabor_e = st.selectbox("Sabor de Empanada", EMPANADAS_SABORES)
         cant_e = st.number_input("¿Cuántas unidades?", min_value=1, step=1, key="emp_u")
         if st.button("Sumar Empanadas"):
@@ -78,17 +82,26 @@ with st.expander("➕ Cargar Productos", expanded=True):
                 "Subtotal": PRECIO_UNIT_EMP * cant_e, "Profit": MARGEN_UNIT_EMP * cant_e
             })
 
-    # (Lógica de Barritas y Volcanes igual...)
     elif categoria == "Barritas Crudda":
         sabor_c = st.selectbox("Sabor", CRUDDA_SABORES)
         cant_b = st.number_input("Unidades", min_value=1, step=1, key="bar")
         if st.button("Sumar Barritas"):
             st.session_state.carrito.append({
                 "Cat": "Barritas", "Prod": f"Crudda {sabor_c}", "Cant": cant_b,
-                "Subtotal": 2200 * cant_b, "Profit": 868 * cant_b 
+                "Subtotal": PRECIO_UNIT_BAR * cant_b, "Profit": MARGEN_UNIT_BAR * cant_b 
             })
 
-# --- RESUMEN ---
+    elif categoria == "Volcanes":
+        sabor_v = st.selectbox("Sabor del Volcán", list(VOLCANES_VOLKANO.keys()))
+        cant_v = st.number_input("Unidades", min_value=1, step=1, key="vol")
+        if st.button("Sumar Volcanes"):
+            st.session_state.carrito.append({
+                "Cat": "Volcanes", "Prod": f"Volkano {sabor_v}", "Cant": cant_v,
+                "Subtotal": VOLCANES_VOLKANO[sabor_v]["precio"] * cant_v, 
+                "Profit": VOLCANES_VOLKANO[sabor_v]["margen"] * cant_v
+            })
+
+# --- RESUMEN Y CIERRE ---
 if st.session_state.carrito:
     st.divider()
     df = pd.DataFrame(st.session_state.carrito)
@@ -102,13 +115,12 @@ if st.session_state.carrito:
     total_final = df["Subtotal"].sum() - desc_bar
     st.metric("TOTAL A COBRAR", f"${total_final:,.0f}")
     
-    if st.button("✅ CERRAR VENTA", type="primary"):
+    if st.button("✅ CERRAR VENTA", type="primary", use_container_width=True):
         try:
             filas = []
             for item in st.session_state.carrito:
-                # El descuento de barritas se aplica al total, pero acá guardamos por item
                 filas.append([datetime.now().strftime("%Y-%m-%d %H:%M"), barrio_venta, item["Prod"], item["Cant"], item["Subtotal"], item["Profit"]])
-                descontar_stock(item["Prod"], item["Cant"]) # <--- AQUÍ DESCONTA SABOR POR SABOR
+                descontar_stock(item["Prod"], item["Cant"])
             
             sheet_ventas.append_rows(filas)
             st.success("¡Venta y Stock actualizados!")
