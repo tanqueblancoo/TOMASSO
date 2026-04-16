@@ -10,7 +10,8 @@ st.set_page_config(page_title="Tomaso + Crudda + Volkano", layout="centered")
 # --- CONEXIÓN A GOOGLE SHEETS ---
 # Esto usa los "Secrets" que cargaste en Streamlit Cloud
 try:
-    scope = ["https://www.googleapis.com/auth/spreadsheets"]
+    # --- CONEXIÓN A GOOGLE SHEETS ---
+    scope = ["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
     client = gspread.authorize(creds)
     
