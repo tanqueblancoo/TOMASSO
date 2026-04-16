@@ -3,14 +3,14 @@ import pandas as pd
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
-import plotly.express as px
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Lucas Business Pro", layout="wide")
+st.set_page_config(page_title="Lucas Business Pro", layout="centered")
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
 try:
-    scope = ["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"]
+    # Usamos los dos permisos (Sheets y Drive) para evitar el error 403
+    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
     client = gspread.authorize(creds)
     
@@ -55,107 +55,90 @@ def descontar_stock(producto_nombre, cantidad):
         stock_actual = int(sheet_stock.cell(fila, 2).value)
         sheet_stock.update_cell(fila, 2, stock_actual - cantidad)
     except:
-        st.warning(f"No se pudo descontar stock de: {producto_nombre}")
+        pass
 
 # --- INTERFAZ ---
-st.title("🍕 Sistema de Gestión Lucas")
+st.title("🍕 Sistema Lucas Pro")
 
 if 'carrito' not in st.session_state:
     st.session_state.carrito = []
 
-tab1, tab2 = st.tabs(["🛒 Nueva Venta", "📊 Balance y Gráficos"])
+barrio_venta = st.sidebar.selectbox("📍 Barrio", BARRIOS)
 
-with tab1:
-    barrio_venta = st.sidebar.selectbox("📍 Barrio", BARRIOS)
+with st.expander("➕ Cargar Productos", expanded=True):
+    categoria = st.radio("Categoría:", ["Pizzas", "Empanadas", "Barritas Crudda", "Volcanes"], horizontal=True)
+    
+    if categoria == "Pizzas":
+        sabor = st.selectbox("Sabor Pizza", list(PIZZAS.keys()))
+        cant = st.number_input("Cantidad", min_value=1, step=1, key="piz")
+        if st.button("Agregar Pizza"):
+            st.session_state.carrito.append({
+                "Cat": "Pizzas", "Prod": f"Pizza {sabor}", "Cant": cant,
+                "Subtotal": PIZZAS[sabor]["precio"] * cant, "Profit": PIZZAS[sabor]["margen"] * cant
+            })
 
-    with st.expander("➕ Cargar Productos", expanded=True):
-        categoria = st.radio("Categoría:", ["Pizzas", "Empanadas", "Barritas Crudda", "Volcanes"], horizontal=True)
-        
-        if categoria == "Pizzas":
-            sabor = st.selectbox("Sabor Pizza", list(PIZZAS.keys()))
-            cant = st.number_input("Cantidad", min_value=1, step=1, key="piz")
-            if st.button("Agregar Pizza"):
-                st.session_state.carrito.append({
-                    "Cat": "Pizzas", "Prod": f"Pizza {sabor}", "Cant": cant,
-                    "Subtotal": PIZZAS[sabor]["precio"] * cant, "Profit": PIZZAS[sabor]["margen"] * cant
-                })
+    elif categoria == "Empanadas":
+        cant_e = st.number_input("Cajas de 4", min_value=1, step=1, key="emp")
+        if st.button("Agregar Empanadas"):
+            st.session_state.carrito.append({
+                "Cat": "Empanadas", "Prod": "Empanadas (Pack x4)", "Cant": cant_e,
+                "Subtotal": PRECIO_CAJA_4 * cant_e, "Profit": MARGEN_CAJA_4 * cant_e
+            })
 
-        elif categoria == "Empanadas":
-            cant_e = st.number_input("Cajas de 4", min_value=1, step=1, key="emp")
-            if st.button("Agregar Empanadas"):
-                st.session_state.carrito.append({
-                    "Cat": "Empanadas", "Prod": "Empanadas (Pack x4)", "Cant": cant_e,
-                    "Subtotal": PRECIO_CAJA_4 * cant_e, "Profit": MARGEN_CAJA_4 * cant_e
-                })
+    elif categoria == "Barritas Crudda":
+        sabor_c = st.selectbox("Sabor", CRUDDA_SABORES)
+        cant_b = st.number_input("Unidades", min_value=1, step=1, key="bar")
+        if st.button("Sumar Barritas"):
+            st.session_state.carrito.append({
+                "Cat": "Barritas", "Prod": f"Crudda {sabor_c}", "Cant": cant_b,
+                "Subtotal": PRECIO_UNIT_BAR * cant_b, "Profit": MARGEN_UNIT_BAR * cant_b 
+            })
 
-        elif categoria == "Barritas Crudda":
-            sabor_c = st.selectbox("Sabor", CRUDDA_SABORES)
-            cant_b = st.number_input("Unidades", min_value=1, step=1, key="bar")
-            if st.button("Sumar Barritas"):
-                st.session_state.carrito.append({
-                    "Cat": "Barritas", "Prod": f"Crudda {sabor_c}", "Cant": cant_b,
-                    "Subtotal": PRECIO_UNIT_BAR * cant_b, "Profit": MARGEN_UNIT_BAR * cant_b 
-                })
+    elif categoria == "Volcanes":
+        tipo_v = st.selectbox("Sabor Volcán", list(VOLCANES_VOLKANO.keys()))
+        cant_v = st.number_input("Cant.", min_value=1, step=1, key="vol")
+        if st.button("Agregar Volcán"):
+            st.session_state.carrito.append({
+                "Cat": "Volcanes", "Prod": f"Volkano {tipo_v}", "Cant": cant_v,
+                "Subtotal": VOLCANES_VOLKANO[tipo_v]["precio"] * cant_v, "Profit": VOLCANES_VOLKANO[tipo_v]["margen"] * cant_v
+            })
 
-        elif categoria == "Volcanes":
-            tipo_v = st.selectbox("Sabor Volcán", list(VOLCANES_VOLKANO.keys()))
-            cant_v = st.number_input("Cant.", min_value=1, step=1, key="vol")
-            if st.button("Agregar Volcán"):
-                st.session_state.carrito.append({
-                    "Cat": "Volcanes", "Prod": f"Volkano {tipo_v}", "Cant": cant_v,
-                    "Subtotal": VOLCANES_VOLKANO[tipo_v]["precio"] * cant_v, "Profit": VOLCANES_VOLKANO[tipo_v]["margen"] * cant_v
-                })
+# --- RESUMEN DE VENTA ---
+if st.session_state.carrito:
+    st.divider()
+    df = pd.DataFrame(st.session_state.carrito)
+    
+    # Lógica de Descuento Pack x10 Barritas
+    total_bar = df[df["Cat"] == "Barritas"]["Cant"].sum()
+    desc_vta = (total_bar // 10) * 3000 if total_bar >= 10 else 0
 
-    if st.session_state.carrito:
-        st.divider()
-        df = pd.DataFrame(st.session_state.carrito)
-        
-        # PROMO BARRITAS: 10 unidades x $19.000 (Ahorro de $3000 vs $22000)
-        total_bar = df[df["Cat"] == "Barritas"]["Cant"].sum()
-        desc_vta = (total_bar // 10) * 3000 if total_bar >= 10 else 0
-        desc_profit = (total_bar // 10) * 3000 if total_bar >= 10 else 0 # Ajuste de ganancia
-
-        st.table(df[["Prod", "Cant", "Subtotal"]])
-        total_final = df["Subtotal"].sum() - desc_vta
-        st.metric("TOTAL A COBRAR", f"${total_final:,.0f}")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ CERRAR VENTA", use_container_width=True, type="primary"):
-                try:
-                    filas = []
-                    ratio = (df[df["Cat"]=="Barritas"]["Subtotal"].sum() - desc_vta) / df[df["Cat"]=="Barritas"]["Subtotal"].sum() if total_bar >= 10 else 1
+    st.table(df[["Prod", "Cant", "Subtotal"]])
+    total_final = df["Subtotal"].sum() - desc_vta
+    st.metric("TOTAL A COBRAR", f"${total_final:,.0f}")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ CERRAR VENTA", use_container_width=True, type="primary"):
+            try:
+                filas = []
+                # Ajuste de ratio para el profit de barritas si hay descuento
+                total_sub_bar = df[df["Cat"]=="Barritas"]["Subtotal"].sum()
+                ratio = (total_sub_bar - desc_vta) / total_sub_bar if total_bar >= 10 else 1
+                
+                for item in st.session_state.carrito:
+                    sub_r = item["Subtotal"] * ratio if item["Cat"] == "Barritas" else item["Subtotal"]
+                    prof_r = item["Profit"] * ratio if item["Cat"] == "Barritas" else item["Profit"]
                     
-                    for item in st.session_state.carrito:
-                        sub = item["Subtotal"] * ratio if item["Cat"] == "Barritas" else item["Subtotal"]
-                        prof = item["Profit"] * ratio if item["Cat"] == "Barritas" else item["Profit"]
-                        
-                        filas.append([datetime.now().strftime("%Y-%m-%d %H:%M"), barrio_venta, item["Prod"], item["Cant"], sub, prof])
-                        descontar_stock(item["Prod"], item["Cant"])
-                    
-                    sheet_ventas.append_rows(filas)
-                    st.success("¡Venta guardada!")
-                    st.session_state.carrito = []
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al guardar: {e}")
-        with col2:
-            if st.button("🗑️ VACIAR", use_container_width=True):
+                    filas.append([datetime.now().strftime("%Y-%m-%d %H:%M"), barrio_venta, item["Prod"], item["Cant"], sub_r, prof_r])
+                    descontar_stock(item["Prod"], item["Cant"])
+                
+                sheet_ventas.append_rows(filas)
+                st.success("¡Venta guardada!")
                 st.session_state.carrito = []
                 st.rerun()
-
-with tab2:
-    st.header("📈 Rendimiento del Negocio")
-    try:
-        data = pd.DataFrame(sheet_ventas.get_all_records())
-        if not data.empty:
-            c1, c2 = st.columns(2)
-            with c1:
-                st.plotly_chart(px.pie(data, names='Barrio', values='Subtotal', title="Ventas por Barrio"), use_container_width=True)
-            with c2:
-                prof_p = data.groupby('Producto')['Profit'].sum().reset_index()
-                st.plotly_chart(px.bar(prof_p, x='Profit', y='Producto', orientation='h', title="Profit por Producto"), use_container_width=True)
-        else:
-            st.info("Esperando ventas para graficar...")
-    except:
-        st.warning("Revisá los encabezados de tu hoja VENTAS (FECHA, BARRIO, PRODUCTO, CANTIDAD, SUBTOTAL, PROFIT)")
+            except Exception as e:
+                st.error(f"Error al guardar: {e}")
+    with col2:
+        if st.button("🗑️ VACIAR", use_container_width=True):
+            st.session_state.carrito = []
+            st.rerun()
