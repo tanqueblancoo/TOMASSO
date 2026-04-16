@@ -42,7 +42,7 @@ VOLCANES_VOLKANO = {
 EMPANADAS_SABORES = ["Carne", "JyQ", "CyQ", "Pollo", "Humita", "Verdura", "Roquefort", "Cheeseburger", "Bondiola BBQ", "Capresse"]
 PRECIO_CAJA_8 = 10000
 MARGEN_CAJA_8 = 3000
-BARRIOS = ["Mi Barrio", "Barrio Al Lado", "Barrio Cercano"]
+BARRIOS = ["Talar del Lago 1", "Talar del lago 2","Barrancas de Santa Maria","Nordelta","Santa Barbara","Otro"]
 
 # --- LÓGICA DE STOCK ---
 def descontar_stock(producto_nombre, cantidad):
