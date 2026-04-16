@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Tomaso Pro", layout="centered")
+st.set_page_config(page_title="Tomaso + Crudda + Volkano", layout="centered")
 
-# --- LISTA DE PRECIOS ACTUALIZADA ---
+# --- BASE DE DATOS AMPLIADA ---
 PIZZAS = {
     "Muzzarella": {"precio": 6000, "margen": 2000},
     "Fugazzeta": {"precio": 6450, "margen": 2050},
@@ -12,77 +12,74 @@ PIZZAS = {
     "Pepperoni": {"precio": 8000, "margen": 2000},
     "Napolitana": {"precio": 5200, "margen": 1800},
 }
+
+# Agregué los nuevos productos aquí
+BARRITAS_CRUDDA = {
+    "Individual": {"precio": 1332, "margen": 868},
+    "Pack x10": {"precio": 13320, "margen": 5680}
+}
+
+VOLCANES_VOLKANO = {
+    "Chocolate": {"precio": 2800, "margen": 700},
+    "Dulce de Leche": {"precio": 2800, "margen": 700}
+}
+
 EMPANADAS_SABORES = ["Carne", "JyQ", "CyQ", "Pollo", "Humita", "Verdura", "Roquefort", "Cheeseburger", "Bondiola BBQ", "Capresse"]
 PRECIO_CAJA_8 = 10000
 MARGEN_CAJA_8 = 3000
 BARRIOS = ["Mi Barrio", "Barrio Al Lado", "Barrio Cercano"]
 
-# Inicializar carrito si no existe
 if 'carrito' not in st.session_state:
     st.session_state.carrito = []
 
-# --- INTERFAZ ---
-st.title("🚀 Tomaso: Pedidos Sin Límite")
+st.title("🚀 Sistema Multi-Marca: Lucas")
 
-# Sidebar para info general
-st.sidebar.header("Configuración")
-barrio_venta = st.sidebar.selectbox("📍 Barrio", BARRIOS)
+barrio_venta = st.sidebar.selectbox("📍 Barrio de la Venta", BARRIOS)
 
-# 1. SECCIÓN DE CARGA
-with st.container():
-    col_tipo, col_sabor, col_cant = st.columns([2, 3, 2])
+# --- CARGA DE PRODUCTOS ---
+with st.expander("➕ Cargar Productos al Pedido", expanded=True):
+    # Agregamos las nuevas categorías al radio button
+    categoria = st.radio("Categoría:", ["Pizzas", "Empanadas", "Barritas Crudda", "Volcanes Volkano"])
     
-    with col_tipo:
-        prod_tipo = st.selectbox("Producto", ["Pizza", "Caja x8", "Media Caja x4"])
-    
-    with col_sabor:
-        if prod_tipo == "Pizza":
-            sabor = st.selectbox("Sabor", list(PIZZAS.keys()))
-        else:
-            sabor = "Variadas" # Las empanadas las agrupamos por caja para rapidez
-            
-    with col_cant:
-        # Aquí podés poner 1 o 1000, no hay límite
-        cantidad = st.number_input("Cant.", min_value=1, step=1, value=1)
+    if categoria == "Pizzas":
+        sabor = st.selectbox("Sabor Pizza", list(PIZZAS.keys()))
+        cant = st.number_input("Cantidad", min_value=1, step=1, key="piz")
+        if st.button("Agregar Pizza"):
+            st.session_state.carrito.append({"Producto": f"Pizza {sabor}", "Cant": cant, "Subtotal": PIZZAS[sabor]["precio"] * cant, "Profit": PIZZAS[sabor]["margen"] * cant})
+            st.toast("Pizza sumada")
 
-    if st.button("➕ AGREGAR AL PEDIDO", use_container_width=True):
-        if prod_tipo == "Pizza":
-            p = PIZZAS[sabor]
-            item = {"Producto": f"Pizza {sabor}", "Cant": cantidad, "Subtotal": p["precio"] * cantidad, "Profit": p["margen"] * cantidad}
-        else:
-            p_caja = PRECIO_CAJA_8 if "8" in prod_tipo else PRECIO_CAJA_8 / 2
-            m_caja = MARGEN_CAJA_8 if "8" in prod_tipo else MARGEN_CAJA_8 / 2
-            item = {"Producto": prod_tipo, "Cant": cantidad, "Subtotal": p_caja * cantidad, "Profit": m_caja * cantidad}
-        
-        st.session_state.carrito.append(item)
-        st.toast("Agregado!")
+    elif categoria == "Empanadas":
+        tipo_e = st.selectbox("Formato", ["Caja de 8", "Media Caja (4)"])
+        cant_e = st.number_input("Cantidad Cajas", min_value=1, step=1, key="emp")
+        precio_u = PRECIO_CAJA_8 if "8" in tipo_e else PRECIO_CAJA_8 / 2
+        margen_u = MARGEN_CAJA_8 if "8" in tipo_e else MARGEN_CAJA_8 / 2
+        if st.button("Agregar Empanadas"):
+            st.session_state.carrito.append({"Producto": f"Emp. {tipo_e}", "Cant": cant_e, "Subtotal": precio_u * cant_e, "Profit": margen_u * cant_e})
+            st.toast("Empanadas sumadas")
 
+    elif categoria == "Barritas Crudda":
+        tipo_b = st.selectbox("Presentación", list(BARRITAS_CRUDDA.keys()))
+        cant_b = st.number_input("Cantidad", min_value=1, step=1, key="bar")
+        if st.button("Agregar Barrita"):
+            st.session_state.carrito.append({"Producto": f"Crudda {tipo_b}", "Cant": cant_b, "Subtotal": BARRITAS_CRUDDA[tipo_b]["precio"] * cant_b, "Profit": BARRITAS_CRUDDA[tipo_b]["margen"] * cant_b})
+            st.toast("Barrita sumada")
+
+    elif categoria == "Volcanes Volkano":
+        tipo_v = st.selectbox("Sabor Volcán", list(VOLCANES_VOLKANO.keys()))
+        cant_v = st.number_input("Cantidad", min_value=1, step=1, key="vol")
+        if st.button("Agregar Volcán"):
+            st.session_state.carrito.append({"Producto": f"Volkano {tipo_v}", "Cant": cant_v, "Subtotal": VOLCANES_VOLKANO[tipo_v]["precio"] * cant_v, "Profit": VOLCANES_VOLKANO[tipo_v]["margen"] * cant_v})
+            st.toast("Volcán sumado")
+
+# --- RESUMEN Y CIERRE ---
 st.divider()
-
-# 2. RESUMEN DE VENTA (EL CARRITO)
 if st.session_state.carrito:
-    st.subheader(f"🛒 Detalle del Pedido - {barrio_venta}")
     df = pd.DataFrame(st.session_state.carrito)
-    
-    # Mostramos la tabla de lo que va pidiendo
     st.dataframe(df[["Producto", "Cant", "Subtotal"]], use_container_width=True)
     
-    total_vta = df["Subtotal"].sum()
-    total_profit = df["Profit"].sum()
+    total_v = df["Subtotal"].sum()
+    st.metric("TOTAL PEDIDO", f"${total_v:,.0f}")
     
-    # Grandes totales destacados
-    st.metric("TOTAL A COBRAR", f"${total_vta:,.0f}")
-    
-    col_confirm, col_cancel = st.columns(2)
-    with col_confirm:
-        if st.button("✅ CERRAR VENTA", use_container_width=True, type="primary"):
-            # AQUÍ ES DONDE SE GUARDARÍA TODO
-            st.success(f"Venta registrada por ${total_vta:,.0f}")
-            st.session_state.carrito = [] # Limpiar para el próximo cliente
-            st.balloons()
-    with col_cancel:
-        if st.button("🗑️ BORRAR TODO", use_container_width=True):
-            st.session_state.carrito = []
-            st.rerun()
-else:
-    st.info("Esperando carga de pedido...")
+    if st.button("✅ FINALIZAR VENTA", use_container_width=True, type="primary"):
+        st.success(f"Venta registrada en {barrio_venta}")
+        st.session_state.carrito = []
