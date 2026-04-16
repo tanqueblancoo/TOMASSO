@@ -16,9 +16,9 @@ try:
     client = gspread.authorize(creds)
     
     # Abrimos el archivo (asegurate que se llame así en tu Drive)
-    spreadsheet = client.open("VentasTomaso")
-    sheet_ventas = spreadsheet.worksheet("Ventas")
-    sheet_stock = spreadsheet.worksheet("Stock")
+    spreadsheet = client.open("TOMASSO")
+    sheet_ventas = spreadsheet.worksheet("VENTAS")
+    sheet_stock = spreadsheet.worksheet("STOCK")
 except Exception as e:
     st.error(f"Error de conexión con Google Sheets: {e}")
 
