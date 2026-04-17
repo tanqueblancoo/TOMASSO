@@ -112,13 +112,14 @@ if modo == "Tienda":
                     fila = [str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, tel_cliente, barr_elegido, lot, urg, ped_db, float(total_f), float(p_neto)]
                     sheet_pendientes.append_row(fila)
                     
-                    # LINK WHATSAPP LIMPIO CON TU NÚMERO
+                    # LINK WHATSAPP SEGURO
                     msg_wa = f"Hola Lucas! Soy {nom}. Acabo de hacer un pedido web por ${total_f:,.0f}. Avisame cuando lo veas!"
                     msg_encoded = urllib.parse.quote(msg_wa)
                     link_final = f"https://api.whatsapp.com/send?phone=5491123306544&text={msg_encoded}"
                     
                     st.success("✅ ¡Pedido registrado!")
-                    st.markdown(f'<a href="{link_final}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-size:18px; font-weight:bold; cursor:pointer;">🟢 AVISAR A LUCAS POR WHATSAPP</button></a>', unsafe_allow_stdio=True)
+                    # BOTÓN CON HTML SEPARADO PARA EVITAR EL TYPEERROR
+                    st.markdown(f'<a href="{link_final}" target="_blank" style="text-decoration: none;"><div style="text-align: center; background-color: #25D366; color: white; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold;">🟢 AVISAR A LUCAS POR WHATSAPP</div></a>', unsafe_allow_stdio=True)
                     st.session_state.carrito = []
                 else: st.warning("Completá los campos obligatorios.")
 
@@ -133,7 +134,6 @@ else: # --- PANEL ADMIN ---
                     with st.expander(f"Pedido: {row['CLIENTE']} - {row['BARRIO']}"):
                         st.write(f"**Detalle:** {row['PEDIDO']}")
                         c1, c2 = st.columns(2)
-                        
                         if c1.button("✅ ACEPTAR", key=f"ok_{row['ID']}"):
                             items = str(row['PEDIDO']).split("; ")
                             filas_v = []
@@ -142,18 +142,13 @@ else: # --- PANEL ADMIN ---
                                 if len(p_data) < 3: continue
                                 cant = int(p_data[0].split("x ")[0])
                                 prod = p_data[0].split("x ")[1].strip()
-                                
                                 filas_v.append([row['FECHA'], row['BARRIO'], prod, cant, float(p_data[1]), float(p_data[2])])
-                                
-                                # Descontar Stock
                                 cell = sheet_stock.find(prod)
                                 s_act = int(sheet_stock.cell(cell.row, 2).value)
                                 sheet_stock.update_cell(cell.row, 2, s_act - cant)
-                            
                             sheet_ventas.append_rows(filas_v)
                             sheet_pendientes.delete_rows(i + 2)
                             st.rerun()
-                            
                         if c2.button("❌ RECHAZAR", key=f"no_{row['ID']}"):
                             sheet_pendientes.delete_rows(i + 2)
                             st.rerun()
