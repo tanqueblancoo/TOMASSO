@@ -47,12 +47,19 @@ if 'carrito' not in st.session_state: st.session_state.carrito = []
 modo = st.sidebar.radio("Ir a:", ["Tienda", "Admin"])
 
 if modo == "Tienda":
+    # DESCRIPCIÓN DE LA PÁGINA
     st.title("🍕 ¡Pedidos para Lucas!")
+    st.markdown("#### ¡Bienvenido! Elegí lo que más te guste y hacé tu pedido online de forma rápida.")
+    st.info("🔥 **PROMO:** ¡Llevando 10 barritas Crudda o más, tenés **$3.000 de descuento** automático!")
+
     stock_actual = obtener_stock_dict()
     t = st.tabs(["🍕 Pizzas", "🥟 Empas", "🍫 Crudda", "🍰 Postres"])
     
     with t[0]:
-        piz = st.selectbox("Elegí Pizza", list(PIZZAS.keys()))
+        # Precios al lado del nombre
+        opciones_piz = [f"{p} - ${PIZZAS[p]['precio']}" for p in PIZZAS.keys()]
+        piz_sel = st.selectbox("Elegí Pizza", opciones_piz)
+        piz = piz_sel.split(" - $")[0]
         n_piz = f"Pizza {piz}"
         disp = stock_actual.get(n_piz, 0)
         c_p = st.number_input(f"Cantidad ({disp} disp.)", 0, disp, step=1, key="p_c")
@@ -61,7 +68,7 @@ if modo == "Tienda":
             st.rerun()
 
     with t[1]:
-        emp = st.selectbox("Sabor Empanada", EMPANADAS_SABORES)
+        emp = st.selectbox("Sabor Empanada ($1.625 c/u)", EMPANADAS_SABORES)
         n_emp = f"Empanada {emp}"
         disp_e = stock_actual.get(n_emp, 0)
         op_e = [i for i in range(0, disp_e + 1, 4)]
@@ -71,7 +78,7 @@ if modo == "Tienda":
             st.rerun()
 
     with t[2]:
-        bar = st.selectbox("Sabor Barrita", CRUDDA_SABORES)
+        bar = st.selectbox("Sabor Barrita ($2.200 c/u)", CRUDDA_SABORES)
         n_bar = f"Crudda {bar}"
         disp_b = stock_actual.get(n_bar, 0)
         c_b = st.number_input(f"Cantidad ({disp_b} disp.)", 0, disp_b, step=1, key="b_c")
@@ -80,37 +87,39 @@ if modo == "Tienda":
             st.rerun()
 
     with t[3]:
-        vol = st.selectbox("Sabor Volcán", list(VOLCANES.keys()))
+        vol_sel = st.selectbox("Sabor Volcán", [f"{v} - ${VOLCANES[v]}" for v in VOLCANES.keys()])
+        vol = vol_sel.split(" - $")[0]
         disp_v = stock_actual.get(vol, 0)
         c_v = st.number_input(f"Cantidad ({disp_v} disp.)", 0, disp_v, step=1, key="v_c")
         if st.button("Sumar Volcán 🛒") and c_v > 0:
-            st.session_state.carrito.append({"Cat": "Volcanes", "Prod": vol, "Cant": c_v, "Sub": 3500*c_v, "Prof": 1200*c_v})
+            st.session_state.carrito.append({"Cat": "Volcanes", "Prod": vol, "Cant": c_v, "Sub": VOLCANES[vol]*c_v, "Prof": 1200*c_v})
             st.rerun()
 
     if st.session_state.carrito:
+        st.divider()
         st.subheader("Tu Pedido:")
         df = pd.DataFrame(st.session_state.carrito)
         
-        # Lógica de descuento de barritas
         total_barritas = df[df["Cat"] == "Barritas"]["Cant"].sum() if "Cat" in df.columns else 0
         descuento_promo = (total_barritas // 10) * 3000
         total_f = df["Sub"].sum() - descuento_promo
         
         st.table(df[["Prod", "Cant", "Sub"]])
         
-        # Botón para borrar el carrito
-        if st.button("🗑️ VACIAR CARRITO", use_container_width=True):
-            st.session_state.carrito = []
-            st.rerun()
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            if st.button("🗑️ VACIAR CARRITO", use_container_width=True):
+                st.session_state.carrito = []
+                st.rerun()
 
         if descuento_promo > 0:
-            st.success(f"🔥 ¡PROMO ACTIVADA! Se aplicó un descuento de ${descuento_promo:,.0f} por tu pack de barritas.")
+            st.success(f"🔥 ¡PROMO ACTIVADA! Se aplicó un descuento de ${descuento_promo:,.0f} por las barritas.")
         
         st.header(f"Total: ${total_f:,.0f}")
 
         with st.form("datos"):
             nom = st.text_input("Nombre y Apellido")
-            tel_cliente = st.text_input("WhatsApp")
+            tel_cliente = st.text_input("Tu WhatsApp")
             barr_elegido = st.selectbox("Barrio", LISTA_BARRIOS)
             lot = st.text_input("Lote / Casa")
             urg = st.text_input("¿Para cuándo?")
@@ -122,8 +131,8 @@ if modo == "Tienda":
                     fila = [str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, tel_cliente, barr_elegido, lot, urg, ped_db, float(total_f), float(p_neto)]
                     sheet_pendientes.append_row(fila)
                     
-                    mensaje_wa = f"Hola Lucas! Soy {nom}. Hice un pedido por ${total_f:,.0f}."
-                    msg_encoded = urllib.parse.quote(mensaje_wa)
+                    msg_wa = f"Hola Lucas! Soy {nom}. Acabo de hacer un pedido web por ${total_f:,.0f}. Confirmame cuando lo veas!"
+                    msg_encoded = urllib.parse.quote(msg_wa)
                     link_final = f"https://wa.me/5491123306544?text={msg_encoded}"
                     
                     st.success("✅ ¡Pedido registrado!")
@@ -142,7 +151,7 @@ else: # --- PANEL ADMIN ---
                 for i, row in data.iterrows():
                     with st.expander(f"Pedido: {row['CLIENTE']} - {row['BARRIO']}"):
                         st.write(f"**Items:** {row['PEDIDO']}")
-                        st.write(f"**Urgencia:** {row['URGENCIA']}")
+                        st.write(f"**Lote:** {row['LOTE']} | **Urgencia:** {row['URGENCIA']}")
                         c1, c2 = st.columns(2)
                         if c1.button("✅ ACEPTAR", key=f"ok_{row['ID']}"):
                             items = str(row['PEDIDO']).split("; ")
