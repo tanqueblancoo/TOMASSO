@@ -60,6 +60,7 @@ if modo == "Tienda":
             st.session_state.carrito.append({"Cat": "Pizzas", "Prod": n_piz, "Cant": c_p, "Sub": PIZZAS[piz]["precio"]*c_p, "Prof": PIZZAS[piz]["margen"]*c_p})
             st.rerun()
 
+    # (El resto de categorías se mantienen igual...)
     with t[1]:
         emp = st.selectbox("Sabor Empanada", EMPANADAS_SABORES)
         n_emp = f"Empanada {emp}"
@@ -94,12 +95,11 @@ if modo == "Tienda":
         total_f = df["Sub"].sum() - descuento_promo
         
         st.table(df[["Prod", "Cant", "Sub"]])
-        if descuento_promo > 0: st.success(f"🔥 Promo 10 unidades: -${descuento_promo}")
         st.header(f"Total: ${total_f:,.0f}")
 
         with st.form("datos"):
             nom = st.text_input("Nombre y Apellido")
-            tel_cliente = st.text_input("Tu WhatsApp")
+            tel_cliente = st.text_input("WhatsApp")
             barr_elegido = st.selectbox("Barrio", LISTA_BARRIOS)
             lot = st.text_input("Lote / Casa")
             urg = st.text_input("¿Para cuándo?")
@@ -108,20 +108,18 @@ if modo == "Tienda":
                 if nom and tel_cliente and lot:
                     ped_db = "; ".join([f"{x['Cant']}x {x['Prod']}|{x['Sub']}|{x['Prof']}" for x in st.session_state.carrito])
                     p_neto = df["Prof"].sum() - descuento_promo
-                    
                     fila = [str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, tel_cliente, barr_elegido, lot, urg, ped_db, float(total_f), float(p_neto)]
                     sheet_pendientes.append_row(fila)
                     
-                    # LINK WHATSAPP SEGURO
-                    msg_wa = f"Hola Lucas! Soy {nom}. Acabo de hacer un pedido web por ${total_f:,.0f}. Avisame cuando lo veas!"
-                    msg_encoded = urllib.parse.quote(msg_wa)
-                    link_final = f"https://api.whatsapp.com/send?phone=5491123306544&text={msg_encoded}"
+                    # LINK WHATSAPP ULTRASIMPLE (Para que no falle)
+                    mensaje_wa = f"Hola Lucas! Soy {nom}. Hice un pedido por ${total_f:,.0f}."
+                    msg_encoded = urllib.parse.quote(mensaje_wa)
+                    link_final = f"https://wa.me/5491123306544?text={msg_encoded}"
                     
                     st.success("✅ ¡Pedido registrado!")
-                    # BOTÓN CON HTML SEPARADO PARA EVITAR EL TYPEERROR
-                    st.markdown(f'<a href="{link_final}" target="_blank" style="text-decoration: none;"><div style="text-align: center; background-color: #25D366; color: white; padding: 15px; border-radius: 10px; font-size: 18px; font-weight: bold;">🟢 AVISAR A LUCAS POR WHATSAPP</div></a>', unsafe_allow_stdio=True)
+                    st.write(f"👉 [HACÉ CLIC ACÁ PARA AVISARLE A LUCAS POR WHATSAPP]({link_final})")
                     st.session_state.carrito = []
-                else: st.warning("Completá los campos obligatorios.")
+                else: st.warning("Faltan datos.")
 
 else: # --- PANEL ADMIN ---
     clave = st.text_input("Clave", type="password")
@@ -130,9 +128,12 @@ else: # --- PANEL ADMIN ---
         try:
             data = pd.DataFrame(sheet_pendientes.get_all_records())
             if not data.empty:
+                # Alerta visual de pedidos
+                st.error(f"🚨 TENÉS {len(data)} PEDIDOS PENDIENTES")
+                
                 for i, row in data.iterrows():
                     with st.expander(f"Pedido: {row['CLIENTE']} - {row['BARRIO']}"):
-                        st.write(f"**Detalle:** {row['PEDIDO']}")
+                        st.write(f"**Items:** {row['PEDIDO']}")
                         c1, c2 = st.columns(2)
                         if c1.button("✅ ACEPTAR", key=f"ok_{row['ID']}"):
                             items = str(row['PEDIDO']).split("; ")
@@ -152,6 +153,6 @@ else: # --- PANEL ADMIN ---
                         if c2.button("❌ RECHAZAR", key=f"no_{row['ID']}"):
                             sheet_pendientes.delete_rows(i + 2)
                             st.rerun()
-            else: st.info("No hay pendientes.")
+            else: st.info("No hay pedidos pendientes.")
         except Exception as e:
             st.error(f"Error en Admin: {e}")
