@@ -111,11 +111,12 @@ if modo == "Tienda":
                     fila = [str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, tel, barr_elegido, lot, urg, ped_db, float(total_f), float(p_neto)]
                     sheet_pendientes.append_row(fila)
                     
-                    mensaje = f"¡Hola Lucas! Soy {nom}.\nPedido web:\n" + "\n".join([f"{x['Cant']}x {x['Prod']}" for x in st.session_state.carrito]) + f"\n\n*Total:* ${total_f}\n*Barrio:* {barr_elegido}\n*Lote:* {lot}"
-                    link_wa = f"https://api.whatsapp.com/send?phone=5491130501255&text={urllib.parse.quote(mensaje)}"
+                    # MENSAJE CORTO PARA EVITAR ERROR 404
+                    mensaje_corto = f"¡Hola Lucas! Soy {nom}. Acabo de hacer un pedido web. Porfa confirmame cuando lo veas!"
+                    link_wa = f"https://api.whatsapp.com/send?phone=5491123306544&text={urllib.parse.quote(mensaje_corto)}"
                     
                     st.success("✅ ¡Pedido registrado!")
-                    st.markdown(f'<a href="{link_wa}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-size:18px; font-weight:bold; cursor:pointer;">🟢 AVISAR POR WHATSAPP</button></a>', unsafe_allow_stdio=True)
+                    st.markdown(f'<a href="{link_wa}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-size:18px; font-weight:bold; cursor:pointer;">🟢 AVISAR A LUCAS POR WHATSAPP</button></a>', unsafe_allow_stdio=True)
                     st.session_state.carrito = []
                 else: st.warning("Completá Nombre, WhatsApp y Lote.")
 
@@ -128,8 +129,12 @@ else: # --- PANEL ADMIN ---
             if not data.empty:
                 for i, row in data.iterrows():
                     with st.expander(f"Pedido: {row['CLIENTE']} - {row['BARRIO']}"):
-                        st.write(f"**Pedido:** {row['PEDIDO']}")
+                        # Limpiamos el texto del pedido para que sea legible en el Admin
+                        detalle_limpio = row['PEDIDO'].replace('|', ' - $').replace(';', '\n•')
+                        st.write(f"**Detalle:**\n•{detalle_limpio}")
                         st.write(f"**Urgencia:** {row['URGENCIA']}")
+                        st.write(f"**Lote:** {row['LOTE']} | **Tel:** {row['TELEFONO']}")
+                        
                         c1, c2 = st.columns(2)
                         
                         if c1.button("✅ ACEPTAR", key=f"ok_{row['ID']}"):
@@ -139,20 +144,24 @@ else: # --- PANEL ADMIN ---
                                 p_data = it.split("|")
                                 if len(p_data) < 3: continue
                                 cant = int(p_data[0].split("x ")[0])
-                                prod = p_data[0].split("x ")[1]
-                                # Guardamos venta
+                                prod = p_data[0].split("x ")[1].strip()
+                                
+                                # Anotamos la venta individual para tus gráficos
                                 filas_v.append([row['FECHA'], row['BARRIO'], prod, cant, float(p_data[1]), float(p_data[2])])
-                                # Descontamos stock
+                                
+                                # Buscamos y descontamos stock
                                 cell = sheet_stock.find(prod)
                                 s_act = int(sheet_stock.cell(cell.row, 2).value)
                                 sheet_stock.update_cell(cell.row, 2, s_act - cant)
                             
                             sheet_ventas.append_rows(filas_v)
                             sheet_pendientes.delete_rows(i + 2)
+                            st.success("Pedido aceptado y stock actualizado.")
                             st.rerun()
                             
                         if c2.button("❌ RECHAZAR", key=f"no_{row['ID']}"):
                             sheet_pendientes.delete_rows(i + 2)
+                            st.warning("Pedido rechazado.")
                             st.rerun()
             else: st.info("No hay pedidos pendientes.")
         except Exception as e:
