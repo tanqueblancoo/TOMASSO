@@ -112,10 +112,24 @@ if modo == "Tienda (Clientes)":
             if st.form_submit_button("ENVIAR PEDIDO"):
                 if nom and lot:
                     ped = "; ".join([f"{x['Cant']}x {x['Prod']}" for x in st.session_state.carrito])
-                    sheet_pendientes.append_row([str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, barr, lot, ped, total, df_cart["Prof"].sum()])
+                    # Armamos la lista con los 8 datos exactos para las 8 columnas
+                    fila_nueva = [
+                        str(uuid.uuid4())[:8],              # ID (Col A)
+                        datetime.now().strftime("%Y-%m-%d %H:%M"), # FECHA (Col B)
+                        nom,                                # CLIENTE (Col C)
+                        barr,                               # BARRIO (Col D)
+                        lot,                                # LOTE (Col E)
+                        ped,                                # PEDIDO (Col F)
+                        float(total),                       # TOTAL (Col G)
+                        float(df_cart["Prof"].sum())        # PROFIT (Col H)
+                    ]
+                    
+                    sheet_pendientes.append_row(fila_nueva)
                     st.success("¡Pedido enviado! Lucas te confirmará por WhatsApp.")
                     st.session_state.carrito = []
-                else: st.warning("Completá nombre y lote.")
+                    st.rerun()
+                else:
+                    st.warning("Faltan datos de envío.")
 
 else: # PANEL ADMIN
     clave = st.text_input("Clave Admin", type="password")
