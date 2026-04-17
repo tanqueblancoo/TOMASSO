@@ -60,7 +60,6 @@ if modo == "Tienda":
             st.session_state.carrito.append({"Cat": "Pizzas", "Prod": n_piz, "Cant": c_p, "Sub": PIZZAS[piz]["precio"]*c_p, "Prof": PIZZAS[piz]["margen"]*c_p})
             st.rerun()
 
-    # (El resto de categorías se mantienen igual...)
     with t[1]:
         emp = st.selectbox("Sabor Empanada", EMPANADAS_SABORES)
         n_emp = f"Empanada {emp}"
@@ -89,12 +88,24 @@ if modo == "Tienda":
             st.rerun()
 
     if st.session_state.carrito:
+        st.subheader("Tu Pedido:")
         df = pd.DataFrame(st.session_state.carrito)
+        
+        # Lógica de descuento de barritas
         total_barritas = df[df["Cat"] == "Barritas"]["Cant"].sum() if "Cat" in df.columns else 0
         descuento_promo = (total_barritas // 10) * 3000
         total_f = df["Sub"].sum() - descuento_promo
         
         st.table(df[["Prod", "Cant", "Sub"]])
+        
+        # Botón para borrar el carrito
+        if st.button("🗑️ VACIAR CARRITO", use_container_width=True):
+            st.session_state.carrito = []
+            st.rerun()
+
+        if descuento_promo > 0:
+            st.success(f"🔥 ¡PROMO ACTIVADA! Se aplicó un descuento de ${descuento_promo:,.0f} por tu pack de barritas.")
+        
         st.header(f"Total: ${total_f:,.0f}")
 
         with st.form("datos"):
@@ -111,15 +122,14 @@ if modo == "Tienda":
                     fila = [str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, tel_cliente, barr_elegido, lot, urg, ped_db, float(total_f), float(p_neto)]
                     sheet_pendientes.append_row(fila)
                     
-                    # LINK WHATSAPP ULTRASIMPLE (Para que no falle)
                     mensaje_wa = f"Hola Lucas! Soy {nom}. Hice un pedido por ${total_f:,.0f}."
                     msg_encoded = urllib.parse.quote(mensaje_wa)
                     link_final = f"https://wa.me/5491123306544?text={msg_encoded}"
                     
                     st.success("✅ ¡Pedido registrado!")
-                    st.write(f"👉 [HACÉ CLIC ACÁ PARA AVISARLE A LUCAS POR WHATSAPP]({link_final})")
+                    st.markdown(f"### 👉 [HACÉ CLIC ACÁ PARA AVISARME POR WHATSAPP]({link_final})")
                     st.session_state.carrito = []
-                else: st.warning("Faltan datos.")
+                else: st.warning("Por favor, completá Nombre, WhatsApp y Lote.")
 
 else: # --- PANEL ADMIN ---
     clave = st.text_input("Clave", type="password")
@@ -128,12 +138,11 @@ else: # --- PANEL ADMIN ---
         try:
             data = pd.DataFrame(sheet_pendientes.get_all_records())
             if not data.empty:
-                # Alerta visual de pedidos
                 st.error(f"🚨 TENÉS {len(data)} PEDIDOS PENDIENTES")
-                
                 for i, row in data.iterrows():
                     with st.expander(f"Pedido: {row['CLIENTE']} - {row['BARRIO']}"):
                         st.write(f"**Items:** {row['PEDIDO']}")
+                        st.write(f"**Urgencia:** {row['URGENCIA']}")
                         c1, c2 = st.columns(2)
                         if c1.button("✅ ACEPTAR", key=f"ok_{row['ID']}"):
                             items = str(row['PEDIDO']).split("; ")
@@ -144,9 +153,11 @@ else: # --- PANEL ADMIN ---
                                 cant = int(p_data[0].split("x ")[0])
                                 prod = p_data[0].split("x ")[1].strip()
                                 filas_v.append([row['FECHA'], row['BARRIO'], prod, cant, float(p_data[1]), float(p_data[2])])
-                                cell = sheet_stock.find(prod)
-                                s_act = int(sheet_stock.cell(cell.row, 2).value)
-                                sheet_stock.update_cell(cell.row, 2, s_act - cant)
+                                try:
+                                    cell = sheet_stock.find(prod)
+                                    s_act = int(sheet_stock.cell(cell.row, 2).value)
+                                    sheet_stock.update_cell(cell.row, 2, s_act - cant)
+                                except: pass
                             sheet_ventas.append_rows(filas_v)
                             sheet_pendientes.delete_rows(i + 2)
                             st.rerun()
