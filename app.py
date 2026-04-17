@@ -9,17 +9,7 @@ import urllib.parse
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Pedidos para Lucas!", layout="centered")
 
-# --- 2. ESTILO "VIEJAS" ---
-st.markdown("""
-    <style>
-    html, body, [class*="css"] { font-size: 20px !important; }
-    .stButton>button { width: 100%; height: 3em; font-size: 22px !important; font-weight: bold; border-radius: 10px; background-color: #FF4B4B; color: white; }
-    .stTabs [data-baseweb="tab"] { font-size: 18px !important; font-weight: bold; }
-    input { font-size: 20px !important; }
-    </style>
-    """, unsafe_allow_stdio=True)
-
-# --- 3. CONEXIÓN ---
+# --- 2. CONEXIÓN ---
 try:
     scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
@@ -29,9 +19,9 @@ try:
     sheet_stock = spreadsheet.worksheet("STOCK")
     sheet_pendientes = spreadsheet.worksheet("PENDIENTES")
 except Exception as e:
-    st.error(f"Error Crítico: {e}")
+    st.error(f"Error de conexión: {e}")
 
-# --- 4. DATOS ---
+# --- 3. DATOS ---
 PIZZAS = {
     "Muzzarella": {"precio": 8000, "margen": 2000},
     "Fugazzeta": {"precio": 8500, "margen": 2050},
@@ -50,7 +40,7 @@ def obtener_stock_dict():
         return {str(item.get('PRODUCTO', '')).strip(): int(item.get('CANTIDAD', 0)) for item in data if item.get('PRODUCTO')}
     except: return {}
 
-# --- 5. INTERFAZ ---
+# --- 4. INTERFAZ ---
 if 'carrito' not in st.session_state: st.session_state.carrito = []
 
 modo = st.sidebar.radio("Ir a:", ["Tienda", "Admin"])
@@ -98,11 +88,16 @@ if modo == "Tienda":
 
     if st.session_state.carrito:
         df = pd.DataFrame(st.session_state.carrito)
-        total_bar = df[df["Cat"] == "Barritas"]["Cant"].sum() if "Cat" in df.columns else 0
-        desc = (total_bar // 10) * 3000
-        total_f = df["Sub"].sum() - desc
+        
+        # --- LÓGICA PROMO SURTIDA ---
+        total_barritas = df[df["Cat"] == "Barritas"]["Cant"].sum() if "Cat" in df.columns else 0
+        descuento_promo = (total_barritas // 10) * 3000
         
         st.table(df[["Prod", "Cant", "Sub"]])
+        if descuento_promo > 0:
+            st.success(f"🔥 ¡Promo 10 unidades aplicada! Descuento: -${descuento_promo}")
+            
+        total_f = df["Sub"].sum() - descuento_promo
         st.header(f"Total: ${total_f:,.0f}")
 
         with st.form("datos"):
@@ -113,12 +108,14 @@ if modo == "Tienda":
             if st.form_submit_button("FINALIZAR"):
                 if nom and tel and lot:
                     ped = "; ".join([f"{x['Cant']}x {x['Prod']}|{x['Sub']}|{x['Prof']}" for x in st.session_state.carrito])
-                    p_neto = df["Prof"].sum() - desc
+                    p_neto = df["Prof"].sum() - descuento_promo
                     fila = [str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, tel, "Otro", lot, urg, ped, float(total_f), float(p_neto)]
                     sheet_pendientes.append_row(fila)
+                    
+                    # Armar mensaje para WhatsApp
                     msg = urllib.parse.quote(f"Lucas! Pedido de {nom}:\n{ped.replace('|', ' -$')}\nTotal: ${total_f}")
-                    st.success("✅ Enviado!")
-                    st.markdown(f'<a href="https://wa.me/5491130501255?text={msg}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-size:20px;">🟢 AVISAR POR WHATSAPP</button></a>', unsafe_allow_stdio=True)
+                    st.success("✅ ¡Pedido enviado a la base!")
+                    st.markdown(f'<a href="https://wa.me/5491130501255?text={msg}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-size:18px; cursor:pointer;">🟢 AVISAR A LUCAS POR WHATSAPP</button></a>', unsafe_allow_stdio=True)
                     st.session_state.carrito = []
                 else: st.warning("Faltan datos")
 
@@ -136,12 +133,22 @@ else: # --- ADMIN ---
                         st.write(f"Detalle: {row.get('PEDIDO', '')}")
                         c1, c2 = st.columns(2)
                         if c1.button("✅ OK", key=f"a_{i}"):
-                            # Lógica simplificada para evitar errores de parseo
-                            sheet_ventas.append_row([row.get('FECHA',''), "Otro", row.get('PEDIDO',''), 1, row.get('TOTAL',0), row.get('PROFIT',0)])
+                            items = str(row['PEDIDO']).split("; ")
+                            filas_v = []
+                            for it in items:
+                                p_data = it.split("|")
+                                if len(p_data) < 3: continue
+                                cant = int(p_data[0].split("x ")[0])
+                                prod = p_data[0].split("x ")[1]
+                                filas_v.append([row['FECHA'], "Otro", prod, cant, float(p_data[1]), float(p_data[2])])
+                                cell = sheet_stock.find(prod)
+                                s_act = int(sheet_stock.cell(cell.row, 2).value)
+                                sheet_stock.update_cell(cell.row, 2, s_act - cant)
+                            sheet_ventas.append_rows(filas_v)
                             sheet_pendientes.delete_rows(i + 2)
                             st.rerun()
                         if c2.button("❌ NO", key=f"r_{i}"):
                             sheet_pendientes.delete_rows(i + 2)
                             st.rerun()
             else: st.info("Nada pendiente")
-        except: st.error("Error leyendo Pendientes. Borrá filas vacías en el Sheets.")
+        except: st.error("Error en Pendientes. Borrá filas vacías.")
