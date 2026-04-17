@@ -33,26 +33,10 @@ EMPANADAS_SABORES = ["Carne", "JyQ", "CyQ", "Pollo", "Humita", "Verdura", "Roque
 CRUDDA_SABORES = ["Brownie", "Peanut Caramel", "Arandanos y Nuez", "Coco y Chocolate", "Avellana y chocolate", "Banana Toffee"]
 VOLCANES_VOLKANO = {"Chocolate": {"precio": 3500, "margen": 1200}, "Dulce de Leche": {"precio": 3500, "margen": 1200}}
 BARRIOS = ["Talar del Lago 1", "Talar del Lago 2", "Barrancas de Santa Maria", "Nordelta", "Santa Barbara", "Otro"]
-URGENCIAS = ["Lo necesito hoy", "Para mañana está bien", "Sin apuro"]
 
 def obtener_stock_dict():
     data = sheet_stock.get_all_records()
-    # Limpieza de nombres para evitar errores de mayúsculas
     return {str(item['PRODUCTO']).strip(): int(item['CANTIDAD']) for item in data}
-
-def descontar_stock(pedido_str):
-    items = pedido_str.split("; ")
-    for item in items:
-        try:
-            cantidad = int(item.split("x ")[0])
-            nombre_prod = item.split("x ")[1].strip()
-            celda = sheet_stock.find(nombre_prod)
-            fila = celda.row
-            stock_actual = int(sheet_stock.cell(fila, 2).value)
-            sheet_stock.update_cell(fila, 2, stock_actual - cantidad)
-        except Exception as e:
-            st.error(f"No se pudo descontar stock de {item}: {e}")
-            continue
 
 # --- INTERFAZ ---
 modo = st.sidebar.radio("Navegación:", ["Tienda (Clientes)", "Panel Admin"])
@@ -60,13 +44,11 @@ modo = st.sidebar.radio("Navegación:", ["Tienda (Clientes)", "Panel Admin"])
 if modo == "Tienda (Clientes)":
     st.title("🍕 Pedidos para Lucas!")
     st.markdown("""
-    **¡Bienvenido al sistema de pedidos online!** Acá vas a poder hacer tu pedido a Lucas, donde vas a contar con todos los productos y su stock actualizado.  
-    Agregá los productos al carrito y cuando tengas listo el pedido, completá tus datos.  
-    ¡Se le enviará el pedido a Lucas y él te confirmará por WhatsApp para coordinar la entrega!
+    **¡Bienvenido al sistema de pedidos online!** Agregá los productos al carrito y completá tus datos.  
+    Lucas te confirmará por WhatsApp para coordinar la entrega.
     """)
     
     if 'carrito' not in st.session_state: st.session_state.carrito = []
-    
     stock_actual = obtener_stock_dict()
     t = st.tabs(["Pizzas", "Empanadas", "Barritas", "Volcanes"])
     
@@ -79,7 +61,7 @@ if modo == "Tienda (Clientes)":
             st.session_state.carrito.append({"Prod": n_piz, "Cant": c_p, "Sub": PIZZAS[piz]["precio"]*c_p, "Prof": PIZZAS[piz]["margen"]*c_p})
 
     with t[1]: # EMPANADAS
-        st.info("💡 Mínimo 4 unidades por sabor.")
+        st.info("💡 Packs cerrados de 4 unidades por sabor.")
         emp = st.selectbox("Sabor", EMPANADAS_SABORES)
         n_emp = f"Empanada {emp}"
         disp_e = stock_actual.get(n_emp, 0)
@@ -88,7 +70,6 @@ if modo == "Tienda (Clientes)":
         if st.button("Agregar Pack") and c_e > 0:
             st.session_state.carrito.append({"Prod": n_emp, "Cant": c_e, "Sub": 1625*c_e, "Prof": 375*c_e})
 
-    # ... (Barritas y Volcanes se mantienen igual que tu código anterior)
     with t[2]: # BARRITAS
         bar = st.selectbox("Sabor Barrita", CRUDDA_SABORES)
         n_bar = f"Crudda {bar}"
@@ -111,35 +92,24 @@ if modo == "Tienda (Clientes)":
         df_cart = pd.DataFrame(st.session_state.carrito)
         st.table(df_cart[["Prod", "Cant", "Sub"]])
         total = df_cart["Sub"].sum()
-        st.header(f"Total: ${total:,.0f}")
         
         with st.form("confirm"):
             nom = st.text_input("Tu Nombre")
-            tel = st.text_input("Número de Teléfono (WhatsApp)")
+            tel = st.text_input("Número de Teléfono")
             barr = st.selectbox("Barrio", BARRIOS)
             lot = st.text_input("Lote/Casa")
-            urg = st.selectbox("¿Con qué urgencia lo necesitás?", URGENCIAS)
+            urg = st.text_input("¿Cuándo lo necesitás?", placeholder="Ej: Para el sábado a la tarde")
             
             if st.form_submit_button("ENVIAR PEDIDO"):
                 if nom and lot and tel:
-                    ped = "; ".join([f"{x['Cant']}x {x['Prod']}" for x in st.session_state.carrito])
-                    fila_nueva = [
-                        str(uuid.uuid4())[:8],              # ID
-                        datetime.now().strftime("%Y-%m-%d %H:%M"), # FECHA
-                        nom,                                # CLIENTE
-                        tel,                                # TELEFONO
-                        barr,                               # BARRIO
-                        lot,                                # LOTE
-                        urg,                                # URGENCIA
-                        ped,                                # PEDIDO
-                        float(total),                       # TOTAL
-                        float(df_cart["Prof"].sum())        # PROFIT
-                    ]
+                    # Guardamos el pedido como un string para el Admin, pero con formato fácil de leer
+                    ped_str = "; ".join([f"{x['Cant']}x {x['Prod']}|{x['Sub']}|{x['Prof']}" for x in st.session_state.carrito])
+                    fila_nueva = [str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, tel, barr, lot, urg, ped_str, float(total), float(df_cart["Prof"].sum())]
                     sheet_pendientes.append_row(fila_nueva)
-                    st.success("¡Pedido enviado! Lucas te confirmará por WhatsApp.")
+                    st.success("¡Pedido enviado!")
                     st.session_state.carrito = []
                     st.rerun()
-                else: st.warning("Por favor, completá nombre, teléfono y lote.")
+                else: st.warning("Completá los campos obligatorios.")
 
 else: # PANEL ADMIN
     clave = st.text_input("Clave Admin", type="password")
@@ -148,22 +118,36 @@ else: # PANEL ADMIN
         data_p = pd.DataFrame(sheet_pendientes.get_all_records())
         if not data_p.empty:
             for i, row in data_p.iterrows():
-                with st.expander(f"Pedido de {row['CLIENTE']} ({row['URGENCIA']}) - ${row['TOTAL']}"):
-                    st.write(f"**Tel:** {row['TELEFONO']}")
-                    st.write(f"**Barrio:** {row['BARRIO']} - Lote: {row['LOTE']}")
-                    st.write(f"**Items:** {row['PEDIDO']}")
+                with st.expander(f"Pedido de {row['CLIENTE']} - {row['URGENCIA']}"):
+                    # Mostrar items amigables para el Admin
+                    items_crudos = row['PEDIDO'].split("; ")
+                    for it in items_crudos:
+                        st.write(f"• {it.split('|')[0]}")
+                    
                     col1, col2 = st.columns(2)
                     if col1.button("✅ ACEPTAR", key=f"ac_{row['ID']}"):
-                        # 1. Anota la venta
-                        sheet_ventas.append_row([row['FECHA'], row['BARRIO'], row['PEDIDO'], 1, row['TOTAL'], row['PROFIT']])
-                        # 2. Descuenta el stock
-                        descontar_stock(row['PEDIDO'])
-                        # 3. Borra de pendientes
+                        filas_ventas = []
+                        for it in items_crudos:
+                            detalles = it.split("|") # [Cant x Prod, Subtotal, Profit]
+                            cant = int(detalles[0].split("x ")[0])
+                            prod = detalles[0].split("x ")[1]
+                            sub = float(detalles[1])
+                            prof = float(detalles[2])
+                            
+                            # Preparar fila para VENTAS
+                            filas_ventas.append([row['FECHA'], row['BARRIO'], prod, cant, sub, prof])
+                            
+                            # Descontar Stock
+                            celda = sheet_stock.find(prod)
+                            stock_actual = int(sheet_stock.cell(celda.row, 2).value)
+                            sheet_stock.update_cell(celda.row, 2, stock_actual - cant)
+                        
+                        sheet_ventas.append_rows(filas_ventas)
                         sheet_pendientes.delete_rows(i + 2)
-                        st.success("¡Pedido Aceptado!")
+                        st.success("Venta registrada item por item y stock actualizado.")
                         st.rerun()
+                    
                     if col2.button("❌ RECHAZAR", key=f"re_{row['ID']}"):
                         sheet_pendientes.delete_rows(i + 2)
-                        st.info("Pedido Rechazado.")
                         st.rerun()
         else: st.info("No hay pedidos pendientes.")
