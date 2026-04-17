@@ -51,7 +51,7 @@ if modo == "Tienda":
     stock_actual = obtener_stock_dict()
     t = st.tabs(["🍕 Pizzas", "🥟 Empas", "🍫 Crudda", "🍰 Postres"])
     
-    with t[0]: # PIZZAS
+    with t[0]:
         piz = st.selectbox("Elegí Pizza", list(PIZZAS.keys()))
         n_piz = f"Pizza {piz}"
         disp = stock_actual.get(n_piz, 0)
@@ -60,7 +60,7 @@ if modo == "Tienda":
             st.session_state.carrito.append({"Cat": "Pizzas", "Prod": n_piz, "Cant": c_p, "Sub": PIZZAS[piz]["precio"]*c_p, "Prof": PIZZAS[piz]["margen"]*c_p})
             st.rerun()
 
-    with t[1]: # EMPANADAS
+    with t[1]:
         emp = st.selectbox("Sabor Empanada", EMPANADAS_SABORES)
         n_emp = f"Empanada {emp}"
         disp_e = stock_actual.get(n_emp, 0)
@@ -70,7 +70,7 @@ if modo == "Tienda":
             st.session_state.carrito.append({"Cat": "Empanadas", "Prod": n_emp, "Cant": c_e, "Sub": 1625*c_e, "Prof": 375*c_e})
             st.rerun()
 
-    with t[2]: # CRUDDA
+    with t[2]:
         bar = st.selectbox("Sabor Barrita", CRUDDA_SABORES)
         n_bar = f"Crudda {bar}"
         disp_b = stock_actual.get(n_bar, 0)
@@ -79,7 +79,7 @@ if modo == "Tienda":
             st.session_state.carrito.append({"Cat": "Barritas", "Prod": n_bar, "Cant": c_b, "Sub": 2200*c_b, "Prof": 868*c_b})
             st.rerun()
 
-    with t[3]: # VOLCANES
+    with t[3]:
         vol = st.selectbox("Sabor Volcán", list(VOLCANES.keys()))
         disp_v = stock_actual.get(vol, 0)
         c_v = st.number_input(f"Cantidad ({disp_v} disp.)", 0, disp_v, step=1, key="v_c")
@@ -91,38 +91,69 @@ if modo == "Tienda":
         df = pd.DataFrame(st.session_state.carrito)
         total_barritas = df[df["Cat"] == "Barritas"]["Cant"].sum() if "Cat" in df.columns else 0
         descuento_promo = (total_barritas // 10) * 3000
+        total_f = df["Sub"].sum() - descuento_promo
         
         st.table(df[["Prod", "Cant", "Sub"]])
-        if descuento_promo > 0:
-            st.success(f"🔥 Promo 10 unidades: -${descuento_promo}")
-            
-        total_f = df["Sub"].sum() - descuento_promo
+        if descuento_promo > 0: st.success(f"🔥 Promo 10 unidades: -${descuento_promo}")
         st.header(f"Total: ${total_f:,.0f}")
 
         with st.form("datos"):
             nom = st.text_input("Nombre y Apellido")
-            tel = st.text_input("WhatsApp (sin el +)")
-            barr_elegido = st.selectbox("Barrio", LISTA_BARRIOS) # <--- ACÁ ESTÁ EL SELECTOR
+            tel = st.text_input("WhatsApp")
+            barr_elegido = st.selectbox("Barrio", LISTA_BARRIOS)
             lot = st.text_input("Lote / Casa")
-            urg = st.text_input("¿Para cuándo lo necesitás?")
+            urg = st.text_input("¿Para cuándo?")
             
             if st.form_submit_button("FINALIZAR PEDIDO"):
                 if nom and tel and lot:
-                    ped = "; ".join([f"{x['Cant']}x {x['Prod']}|{x['Sub']}|{x['Prof']}" for x in st.session_state.carrito])
+                    ped_db = "; ".join([f"{x['Cant']}x {x['Prod']}|{x['Sub']}|{x['Prof']}" for x in st.session_state.carrito])
                     p_neto = df["Prof"].sum() - descuento_promo
-                    
-                    # Guardamos el barrio que eligió el usuario en el formulario
-                    fila = [str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, tel, barr_elegido, lot, urg, ped, float(total_f), float(p_neto)]
+                    fila = [str(uuid.uuid4())[:8], datetime.now().strftime("%Y-%m-%d %H:%M"), nom, tel, barr_elegido, lot, urg, ped_db, float(total_f), float(p_neto)]
                     sheet_pendientes.append_row(fila)
                     
-                    msg = urllib.parse.quote(f"Lucas! Pedido de {nom}:\n{ped.replace('|', ' -$')}\nTotal: ${total_f}\nBarrio: {barr_elegido}")
-                    st.success("✅ ¡Pedido enviado!")
-                    st.markdown(f'<a href="https://wa.me/5491123306544?text={msg}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-size:18px; cursor:pointer;">🟢 AVISAR POR WHATSAPP</button></a>', unsafe_allow_stdio=True)
+                    mensaje = f"¡Hola Lucas! Soy {nom}.\nPedido web:\n" + "\n".join([f"{x['Cant']}x {x['Prod']}" for x in st.session_state.carrito]) + f"\n\n*Total:* ${total_f}\n*Barrio:* {barr_elegido}\n*Lote:* {lot}"
+                    link_wa = f"https://api.whatsapp.com/send?phone=5491130501255&text={urllib.parse.quote(mensaje)}"
+                    
+                    st.success("✅ ¡Pedido registrado!")
+                    st.markdown(f'<a href="{link_wa}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-size:18px; font-weight:bold; cursor:pointer;">🟢 AVISAR POR WHATSAPP</button></a>', unsafe_allow_stdio=True)
                     st.session_state.carrito = []
-                else: st.warning("Por favor completá los campos obligatorios.")
+                else: st.warning("Completá Nombre, WhatsApp y Lote.")
 
-else: # --- ADMIN ---
+else: # --- PANEL ADMIN ---
     clave = st.text_input("Clave", type="password")
     if clave == "lucas2026":
         st.title("👑 Panel Admin")
-        # (Bloque de administración igual al anterior para aceptar/rechazar)
+        try:
+            data = pd.DataFrame(sheet_pendientes.get_all_records())
+            if not data.empty:
+                for i, row in data.iterrows():
+                    with st.expander(f"Pedido: {row['CLIENTE']} - {row['BARRIO']}"):
+                        st.write(f"**Pedido:** {row['PEDIDO']}")
+                        st.write(f"**Urgencia:** {row['URGENCIA']}")
+                        c1, c2 = st.columns(2)
+                        
+                        if c1.button("✅ ACEPTAR", key=f"ok_{row['ID']}"):
+                            items = str(row['PEDIDO']).split("; ")
+                            filas_v = []
+                            for it in items:
+                                p_data = it.split("|")
+                                if len(p_data) < 3: continue
+                                cant = int(p_data[0].split("x ")[0])
+                                prod = p_data[0].split("x ")[1]
+                                # Guardamos venta
+                                filas_v.append([row['FECHA'], row['BARRIO'], prod, cant, float(p_data[1]), float(p_data[2])])
+                                # Descontamos stock
+                                cell = sheet_stock.find(prod)
+                                s_act = int(sheet_stock.cell(cell.row, 2).value)
+                                sheet_stock.update_cell(cell.row, 2, s_act - cant)
+                            
+                            sheet_ventas.append_rows(filas_v)
+                            sheet_pendientes.delete_rows(i + 2)
+                            st.rerun()
+                            
+                        if c2.button("❌ RECHAZAR", key=f"no_{row['ID']}"):
+                            sheet_pendientes.delete_rows(i + 2)
+                            st.rerun()
+            else: st.info("No hay pedidos pendientes.")
+        except Exception as e:
+            st.error(f"Error en Admin: {e}")
