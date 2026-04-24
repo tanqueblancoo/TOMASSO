@@ -5,6 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import uuid
 import urllib.parse
+import requests
 
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Pedidos para Lucas!", layout="centered")
@@ -72,6 +73,34 @@ def obtener_stock_dict():
         }
     except:
         return {}
+
+
+def notificar_telegram(nom, tel_cliente, barr_elegido, lot, urg, carrito_ajustado, total_f, p_neto):
+    """Manda un mensaje al Telegram de Lucas cuando llega un pedido nuevo."""
+    try:
+        token   = st.secrets["telegram_bot_token"]
+        chat_id = st.secrets["telegram_chat_id"]
+
+        lineas_pedido = "\n".join([
+            f"  • {x['Cant']}x {x['Prod']}  →  ${x['Sub']:,.0f}"
+            for x in carrito_ajustado
+        ])
+
+        texto = (
+            f"🛒 <b>NUEVO PEDIDO — TOMASSO</b>\n\n"
+            f"👤 <b>Cliente:</b> {nom}\n"
+            f"📱 <b>WhatsApp:</b> {tel_cliente}\n"
+            f"📍 <b>Barrio:</b> {barr_elegido}  |  <b>Lote:</b> {lot}\n"
+            f"⏰ <b>Para cuándo:</b> {urg}\n\n"
+            f"🧾 <b>Pedido:</b>\n{lineas_pedido}\n\n"
+            f"💰 <b>Total:</b> ${total_f:,.0f}\n"
+            f"📈 <b>Margen neto:</b> ${p_neto:,.0f}"
+        )
+
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        requests.post(url, data={"chat_id": chat_id, "text": texto, "parse_mode": "HTML"}, timeout=5)
+    except Exception as e:
+        st.warning(f"⚠️ Pedido guardado, pero no se pudo enviar la notificación de Telegram: {e}")
 
 
 def calcular_crudda_pricing(carrito):
@@ -262,6 +291,9 @@ if modo == "Tienda":
                         ped_db, float(total_f), float(p_neto)
                     ]
                     sheet_pendientes.append_row(fila)
+
+                    # Notificación automática a Telegram
+                    notificar_telegram(nom, tel_cliente, barr_elegido, lot, urg, carrito_ajustado, total_f, p_neto)
 
                     msg_wa      = f"Hola Lucas! Soy {nom}. Acabo de hacer un pedido web por ${total_f:,.0f}. Confirmame cuando lo veas!"
                     msg_encoded = urllib.parse.quote(msg_wa)
