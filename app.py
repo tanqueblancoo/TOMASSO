@@ -24,12 +24,12 @@ except Exception as e:
 
 # --- 3. DATOS ---
 PIZZAS = {
-    "Muzzarella": {"precio": 8000, "margen": 2000},
-    "Fugazzeta": {"precio": 8500, "margen": 2050},
-    "Jamon": {"precio": 9000, "margen": 2100},
-    "De Autor": {"precio": 9500, "margen": 2100},
-    "Pepperoni": {"precio": 10000, "margen": 2000},
-    "Muzzarella estilo Napolitana": {"precio": 7500, "margen": 1800},  # Renombrada
+    "Muzzarella": {"precio": 9000, "margen": 2200},
+    "Fugazzeta": {"precio": 9500, "margen": 2400},
+    "Jamon": {"precio": 10000, "margen": 2300},
+    "De Autor": {"precio": 11000, "margen": 2500},
+    "Pepperoni": {"precio": 12000, "margen": 2500},
+    "Muzzarella estilo Napolitana": {"precio": 8000, "margen": 2000},
 }
 
 PAN_AJO = {
@@ -46,16 +46,16 @@ CRUDDA_SABORES = [
     "Coco y Chocolate", "Avellana y Chocolate", "Banana Toffee"
 ]
 CRUDDA_PRECIO_UNIT  = 2200
-CRUDDA_MARGEN_UNIT  = 868
-CRUDDA_COSTO_UNIT   = CRUDDA_PRECIO_UNIT - CRUDDA_MARGEN_UNIT   # 1332
-CRUDDA_PRECIO_CAJA  = 19000   # 10 unidades
-CRUDDA_PRECIO_CAJA_UNIT = CRUDDA_PRECIO_CAJA / 10               # 1900
+CRUDDA_MARGEN_UNIT  = 828
+CRUDDA_COSTO_UNIT   = CRUDDA_PRECIO_UNIT - CRUDDA_MARGEN_UNIT
+CRUDDA_PRECIO_CAJA  = 19000
+CRUDDA_PRECIO_CAJA_UNIT = CRUDDA_PRECIO_CAJA / 10
 
 VOLCANES = {
     "Volkano Chocolate":       {"precio": 3500, "margen": 1200},
     "Volkano Dulce de Leche":  {"precio": 3500, "margen": 1200},
-    "Volkano Nutella":         {"precio": 4500, "margen": 900},   # Nuevo
-    "Classic Tiramisu":        {"precio": 3000, "margen": 600},   # Nuevo
+    "Volkano Nutella":         {"precio": 4500, "margen": 900},
+    "Classic Tiramisu":        {"precio": 3000, "margen": 600},
 }
 
 LISTA_BARRIOS = [
@@ -76,7 +76,6 @@ def obtener_stock_dict():
 
 
 def notificar_telegram(nom, tel_cliente, barr_elegido, lot, urg, carrito_ajustado, total_f, p_neto):
-    """Manda un mensaje al Telegram de Lucas cuando llega un pedido nuevo."""
     try:
         token   = st.secrets["telegram_bot_token"]
         chat_id = st.secrets["telegram_chat_id"]
@@ -104,13 +103,6 @@ def notificar_telegram(nom, tel_cliente, barr_elegido, lot, urg, carrito_ajustad
 
 
 def calcular_crudda_pricing(carrito):
-    """
-    Recalcula Sub y Prof de cada item Crudda según lógica de cajas:
-      - Cada grupo de 10 barritas (de cualquier sabor) = $19.000 (1.900/u)
-      - Unidades sueltas (resto) = $2.200/u
-    Los valores se distribuyen proporcionalmente entre los distintos sabores.
-    Devuelve: (carrito_ajustado, cantidad_de_cajas, ahorro_display)
-    """
     barrita_items   = [x for x in carrito if x['Cat'] == 'Barritas']
     total_barritas  = sum(x['Cant'] for x in barrita_items)
 
@@ -124,7 +116,6 @@ def calcular_crudda_pricing(carrito):
     costo_total  = total_barritas * CRUDDA_COSTO_UNIT
     margen_total = precio_total - costo_total
 
-    # Cuánto ahorra el cliente vs precio individual
     ahorro = total_barritas * CRUDDA_PRECIO_UNIT - precio_total
 
     carrito_ajustado = []
@@ -174,10 +165,10 @@ if modo == "Tienda":
 
     # ---- EMPANADAS ----
     with t[1]:
-        emp   = st.selectbox("Sabor Empanada  ($1.625 c/u)", EMPANADAS_SABORES)
+        emp   = st.selectbox("Sabor Empanada  ($1.875 c/u)", EMPANADAS_SABORES)
         n_emp = f"Empanada {emp}"
         disp_e = stock_actual.get(n_emp, 0)
-        max_e  = (disp_e // 4) * 4   # redondeamos al múltiplo de 4 hacia abajo
+        max_e  = (disp_e // 4) * 4
 
         if max_e > 0:
             c_e = st.number_input(
@@ -191,7 +182,7 @@ if modo == "Tienda":
         if st.button("Sumar Empas 🛒") and c_e > 0:
             st.session_state.carrito.append({
                 "Cat": "Empanadas", "Prod": n_emp, "Cant": c_e,
-                "Sub": 1625 * c_e, "Prof": 375 * c_e
+                "Sub": 1875 * c_e, "Prof": 475 * c_e
             })
             st.rerun()
 
@@ -202,7 +193,6 @@ if modo == "Tienda":
         disp_b = stock_actual.get(n_bar, 0)
         c_b    = st.number_input(f"Cantidad  ({disp_b} disp.)", min_value=0, max_value=max(disp_b, 0), step=1, key="b_c")
 
-        # Preview de precio si el total llega a caja
         if c_b > 0:
             ya_en_carrito = sum(x['Cant'] for x in st.session_state.carrito if x['Cat'] == 'Barritas')
             total_prev    = ya_en_carrito + c_b
@@ -253,7 +243,6 @@ if modo == "Tienda":
         st.divider()
         st.subheader("🛒 Tu Pedido:")
 
-        # Aplicar lógica de caja a Crudda
         carrito_ajustado, cajas_crudda, ahorro_crudda = calcular_crudda_pricing(st.session_state.carrito)
         df      = pd.DataFrame(carrito_ajustado)
         total_f = df["Sub"].sum()
@@ -278,7 +267,6 @@ if modo == "Tienda":
 
             if st.form_submit_button("FINALIZAR PEDIDO ✅"):
                 if nom and tel_cliente and lot:
-                    # Guardar con precios y márgenes CORRECTOS (post-ajuste de caja)
                     ped_db  = "; ".join([
                         f"{x['Cant']}x {x['Prod']}|{x['Sub']}|{x['Prof']}"
                         for x in carrito_ajustado
@@ -292,7 +280,6 @@ if modo == "Tienda":
                     ]
                     sheet_pendientes.append_row(fila)
 
-                    # Notificación automática a Telegram
                     notificar_telegram(nom, tel_cliente, barr_elegido, lot, urg, carrito_ajustado, total_f, p_neto)
 
                     msg_wa      = f"Hola Lucas! Soy {nom}. Acabo de hacer un pedido web por ${total_f:,.0f}. Confirmame cuando lo veas!"
@@ -336,7 +323,6 @@ else:
                                     row['FECHA'], row['BARRIO'], prod,
                                     cant, float(p_data[1]), float(p_data[2])
                                 ])
-                                # Descontar stock
                                 try:
                                     cell  = sheet_stock.find(prod)
                                     s_act = int(sheet_stock.cell(cell.row, 2).value)
